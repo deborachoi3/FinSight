@@ -1,0 +1,3 @@
+tickers: ["AAPL", "MSFT"]
+days: 30
+output_dir: "reports"
