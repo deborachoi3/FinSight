@@ -1,4 +1,4 @@
-.finvenv/
+.venv/
 __pycache__/
 *.pyc
 *.pyo
