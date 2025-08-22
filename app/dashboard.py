@@ -6,6 +6,11 @@ import subprocess
 import plotly.express as px
 from wordcloud import WordCloud
 import matplotlib.pyplot as plt
+from datetime import datetime, timedelta
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
+from app.api import fetch_prices
 
 st.set_page_config(page_title="FinSight Dashboard", layout="wide")
 st.title("FinSight Dashboard")
@@ -13,38 +18,67 @@ st.title("FinSight Dashboard")
 # --- Sidebar Controls ---
 st.sidebar.header("Controls")
 
-# Auto-load latest Excel
+# Dynamic ticker input
+tickers_input = st.sidebar.text_area(
+    "Enter tickers separated by commas",
+    value="AAPL,MSFT,GOOG,AMZN,TSLA,NFLX"
+)
+tickers_list = [t.strip().upper() for t in tickers_input.split(",") if t.strip()]
+
+# Date range picker
+start_date = st.sidebar.date_input("Start Date", datetime.today() - timedelta(days=30))
+end_date = st.sidebar.date_input("End Date", datetime.today())
+
+# Fetch Prices Button
+if st.sidebar.button("Fetch Prices"):
+    data = fetch_prices(tickers_list, start_date=start_date, end_date=end_date)
+    
+    st.header("Fetched Stock Prices")
+    
+    # Handle single vs multiple tickers
+    if len(tickers_list) == 1:
+        df = data.reset_index()
+        st.dataframe(df)
+        st.line_chart(df.set_index("Date")["Close"])
+    else:
+        for ticker in tickers_list:
+            if ticker not in data:
+                st.warning(f"No data for {ticker}")
+                continue
+            df = data[ticker].reset_index()
+            st.subheader(ticker)
+            st.dataframe(df)
+            st.line_chart(df.set_index("Date")["Close"])
+
+# --- Upload Excel Report (Optional) ---
 report_path = "reports/market_report.xlsx" if os.path.exists("reports/market_report.xlsx") else None
-uploaded_file = st.sidebar.file_uploader("Upload Excel report", type=["xlsx"])
+uploaded_file = st.file_uploader("Upload Day 1 Excel report", type=["xlsx"])
 if uploaded_file:
     report_path = uploaded_file
 
-# Select tickers to display
-selected_tickers = []
-
 if report_path:
     df_dict = pd.read_excel(report_path, sheet_name=None)
-    all_tickers = [sheet for sheet in df_dict.keys() if sheet.lower() != "errors"]
-    selected_tickers = st.sidebar.multiselect("Select Tickers to Display", options=all_tickers, default=all_tickers)
+    # Option 1 — use all sidebar tickers
+    selected_tickers = tickers_list
 
-# --- Stock Data Section ---
-if report_path:
-    st.header("Stock Data")
+    # OR Option 2 — intersection with Excel sheets
+    excel_tickers = [sheet for sheet in df_dict.keys() if sheet.lower() != "errors"]
+    selected_tickers = [t for t in tickers_list if t in excel_tickers]
+
+    st.header("Excel Stock Data")
     for sheet_name in selected_tickers:
         df = df_dict[sheet_name]
         st.subheader(sheet_name)
         st.dataframe(df)
 
-        # Line chart for closing prices
         if "Date" in df.columns and "Close" in df.columns:
             fig = px.line(df, x="Date", y="Close", title=f"{sheet_name} Closing Prices")
             st.plotly_chart(fig, use_container_width=True)
 
-# Validation errors
-if report_path and "Errors" in df_dict:
-    st.header("Validation Errors")
-    st.dataframe(df_dict["Errors"])
-    st.metric("Number of Validation Errors", len(df_dict["Errors"]))
+    if "Errors" in df_dict:
+        st.header("Validation Errors")
+        st.dataframe(df_dict["Errors"])
+        st.metric("Number of Validation Errors", len(df_dict["Errors"]))
 
 # --- Headlines Section ---
 st.header("Latest Headlines")
@@ -82,7 +116,7 @@ if st.button("Refresh Headlines"):
     else:
         st.error(f"Scraper failed:\n{result.stderr}")
 
-# --- Download Section ---
+# --- Download Validation Errors ---
 if report_path and "Errors" in df_dict:
     st.header("Download Validation Errors")
     csv_data = df_dict["Errors"].to_csv(index=False).encode("utf-8")
