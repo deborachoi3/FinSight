@@ -1,4 +1,4 @@
-# FinSight
+# FinSight 🦈
 
 FinSight is a financial data dashboard that automates data collection, validation, and visualization.  
 It provides an interactive interface for exploring financial trends, generating insights, and supporting decision-making.
