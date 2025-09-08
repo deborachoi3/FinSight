@@ -17,3 +17,4 @@ It provides an interactive interface for exploring financial trends, generating 
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+```
